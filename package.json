@@ -1,0 +1,28 @@
+{
+  "name": "qwen-chat-assistant",
+  "version": "1.0.0",
+  "description": "基于通义千问的智能聊天助手",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "static": "python3 -m http.server 8888",
+    "build": "echo '构建完成，静态文件已准备就绪'",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "ai",
+    "chat",
+    "qwen",
+    "voice",
+    "camera",
+    "assistant"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {}
+}

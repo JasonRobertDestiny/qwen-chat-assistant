@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🤖 智能聊天助手</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#6366f1">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <div class="header-content">
+                <div class="avatar">🤖</div>
+                <h1>智能聊天助手</h1>
+            </div>
+        </header>
+
+        <!-- 聊天区域 -->
+        <main class="chat-container">
+            <div class="messages" id="messages">
+                <!-- 欢迎消息 -->
+                <div class="message bot-message">
+                    <div class="message-avatar">🤖</div>
+                    <div class="message-content">
+                        <div class="message-text">您好！我是智能助手，您可以通过语音、文字或图片与我交流。</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 输入区域 -->
+        <footer class="input-area">
+            <div class="input-container">
+                <!-- 文本输入框 -->
+                <div class="text-input-wrapper">
+                    <input type="text" id="textInput" placeholder="输入您的消息..." class="text-input">
+                </div>
+                
+                <!-- 功能按钮 -->
+                <div class="action-buttons">
+                    <!-- 语音按钮 -->
+                    <button id="voiceBtn" class="action-btn voice-btn" title="语音输入">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                            <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                        </svg>
+                    </button>
+                    
+                    <!-- 相机按钮 -->
+                    <button id="cameraBtn" class="action-btn camera-btn" title="拍照">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 15.2l3.2-2.7L12 8.8 8.8 12.5 12 15.2zM21 6h-3.17l-1.24-1.35c-.37-.41-.91-.65-1.47-.65H8.88c-.56 0-1.1.24-1.47.65L6.17 6H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2z"/>
+                            <circle cx="12" cy="14" r="3"/>
+                        </svg>
+                    </button>
+
+                    <!-- 图片上传按钮 -->
+                    <button id="uploadBtn" class="action-btn upload-btn" title="选择图片">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                        </svg>
+                    </button>
+                    <input type="file" id="imageUpload" accept="image/*" style="display: none;">
+
+                    <!-- 发送按钮 -->
+                    <button id="sendBtn" class="action-btn send-btn" title="发送">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 语音录制状态指示器 -->
+    <div id="voiceIndicator" class="voice-indicator hidden">
+        <div class="voice-animation">
+            <div class="wave"></div>
+            <div class="wave"></div>
+            <div class="wave"></div>
+        </div>
+        <p>正在录音，请说话...</p>
+        <button id="stopVoiceBtn" class="stop-voice-btn">停止录音</button>
+    </div>
+
+    <!-- 相机预览 -->
+    <div id="cameraModal" class="camera-modal hidden">
+        <div class="camera-content">
+            <video id="cameraVideo" autoplay playsinline></video>
+            <canvas id="cameraCanvas" style="display: none;"></canvas>
+            <div class="camera-controls">
+                <button id="captureBtn" class="capture-btn">拍照</button>
+                <button id="closeCameraBtn" class="close-camera-btn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图片预览 -->
+    <div id="imagePreview" class="image-preview hidden">
+        <div class="preview-content">
+            <img id="previewImage" src="" alt="预览图片">
+            <div class="preview-controls">
+                <button id="sendImageBtn" class="send-image-btn">发送图片</button>
+                <button id="retakeBtn" class="retake-btn">重新拍照</button>
+                <button id="cancelImageBtn" class="cancel-image-btn">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div id="loadingIndicator" class="loading-indicator hidden">
+        <div class="loading-spinner"></div>
+        <p>AI正在思考中...</p>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
