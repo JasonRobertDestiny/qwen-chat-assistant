@@ -41,6 +41,8 @@ const elements = {
 // 初始化
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
+    // 首次加载时探测后端可用性，减少“Failed to fetch”误判
+    probeBackend();
 });
 
 function initializeApp() {
@@ -275,6 +277,26 @@ function updateLoadingMessage() {
     if (loadingText) {
         loadingText.textContent = loadingMessages[loadingMessageIndex];
         loadingMessageIndex = (loadingMessageIndex + 1) % loadingMessages.length;
+    }
+}
+
+// 探测后端代理是否可达
+async function probeBackend() {
+    const testUrl = API_CONFIG.baseURL.replace('/api/chat', '/api/test');
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+        const res = await fetch(testUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) {
+            throw new Error(`后端返回状态 ${res.status}`);
+        }
+        console.log('后端可用:', testUrl);
+    } catch (err) {
+        clearTimeout(timeoutId);
+        console.warn('后端不可达:', err.message);
+        showMessage('本地代理不可达，请先运行 `npm run start`（3000端口），或在 8888 预览时保持 3000 代理开启。', 'bot');
     }
 }
 
@@ -638,7 +660,7 @@ window.addEventListener('unhandledrejection', function(event) {
 // PWA 支持
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('/sw.js?v=20251123')
             .then(function(registration) {
                 console.log('ServiceWorker注册成功:', registration.scope);
             })

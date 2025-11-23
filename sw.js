@@ -1,11 +1,13 @@
-// Service Worker for PWA support
-const CACHE_NAME = 'chat-assistant-v1';
+// Service Worker for PWA support (network-first for API，缓存静态)
+const CACHE_NAME = 'chat-assistant-v3';
 const urlsToCache = [
   '/',
   '/index.html',
   '/style.css',
-  '/script.js',
-  '/manifest.json'
+  '/script.js?v=20251123',
+  '/manifest.json',
+  '/icon-192.svg',
+  '/icon-512.svg'
 ];
 
 // 安装事件
@@ -17,22 +19,25 @@ self.addEventListener('install', function(event) {
         return cache.addAll(urlsToCache);
       })
   );
+  // 新版本立即接管
+  self.skipWaiting();
 });
 
 // 获取事件
 self.addEventListener('fetch', function(event) {
+  const { request } = event;
+
+  // 对 API 或非 GET 请求直接走网络，避免缓存干扰
+  if (request.method !== 'GET' || request.url.includes('/api/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request)
-      .then(function(response) {
-        // 如果缓存中有响应，则返回缓存的版本
-        if (response) {
-          return response;
-        }
-        
-        // 否则获取网络版本
-        return fetch(event.request);
-      }
-    )
+    caches.match(request).then(function(response) {
+      if (response) return response;
+      return fetch(request);
+    })
   );
 });
 
@@ -48,6 +53,6 @@ self.addEventListener('activate', function(event) {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
 });
