@@ -148,14 +148,13 @@ function showMessage(content, sender, imageData = null, useTypingEffect = false)
     messageDiv.appendChild(messageContent);
     elements.messages.appendChild(messageDiv);
 
-    // 使用打字机效果（仅AI回复）
-    if (useTypingEffect && sender === 'bot') {
-        // 将换行转换为HTML，支持段落格式
-        const htmlContent = content.replace(/\n/g, '<br>');
-        typeWriterHTML(messageText, htmlContent, 0, 30); // 30ms每字
+    // AI 回复使用 Markdown 渲染，其他保持纯文本
+    if (sender === 'bot') {
+        const html = renderMarkdown(content);
+        messageText.innerHTML = html;
     } else {
-        // 普通消息也支持换行
-        messageText.innerHTML = content.replace(/\n/g, '<br>');
+        // 普通消息保持换行
+        messageText.innerHTML = (content || '').replace(/\n/g, '<br>');
     }
 
     // 滚动到底部
@@ -164,58 +163,9 @@ function showMessage(content, sender, imageData = null, useTypingEffect = false)
     return messageDiv;
 }
 
-// 打字机效果（纯文本）
-function typeWriter(element, text, index, speed) {
-    if (index < text.length) {
-        element.textContent += text.charAt(index);
-
-        // 自动滚动到底部
-        elements.messages.scrollTop = elements.messages.scrollHeight;
-
-        setTimeout(() => typeWriter(element, text, index + 1, speed), speed);
-    }
-}
-
-// 打字机效果（支持HTML）
-function typeWriterHTML(element, htmlText, index, speed) {
-    // 创建临时 div 来解析 HTML
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = htmlText;
-
-    // 获取文本内容（包含换行）
-    const textContent = tempDiv.innerText || tempDiv.textContent;
-
-    // 逐字显示，遇到换行时插入 <br>
-    let currentHTML = '';
-    let textIndex = 0;
-
-    function addNextChar() {
-        if (textIndex < textContent.length) {
-            const char = textContent.charAt(textIndex);
-
-            if (char === '\n') {
-                currentHTML += '<br>';
-            } else {
-                // 转义 HTML 特殊字符
-                const escapedChar = char
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;');
-                currentHTML += escapedChar;
-            }
-
-            element.innerHTML = currentHTML;
-
-            // 自动滚动到底部
-            elements.messages.scrollTop = elements.messages.scrollHeight;
-
-            textIndex++;
-            setTimeout(addNextChar, speed);
-        }
-    }
-
-    addNextChar();
-}
+// 打字机功能已被 Markdown 渲染取代，保留空壳以兼容旧调用
+function typeWriter() {}
+function typeWriterHTML() {}
 
 // API 调用
 async function sendToAPI(message, imageData = null, audioData = null) {
@@ -233,7 +183,7 @@ async function sendToAPI(message, imageData = null, audioData = null) {
 
         // 添加超时控制
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
 
         const response = await fetch(API_CONFIG.baseURL, {
             method: 'POST',
@@ -258,7 +208,8 @@ async function sendToAPI(message, imageData = null, audioData = null) {
         console.log('后端API响应:', data);
         
         if (data.success && data.message) {
-            showMessage(data.message, 'bot', null, true); // 启用打字机效果
+            // AI 回复直接使用 Markdown 渲染，取消打字机避免破坏格式
+            showMessage(data.message, 'bot');
         } else {
             throw new Error('后端返回格式异常');
         }
@@ -340,7 +291,7 @@ async function probeBackend() {
     } catch (err) {
         clearTimeout(timeoutId);
         console.warn('后端不可达:', err.message);
-        showMessage('本地代理不可达，请先运行 `npm run start`（3000端口），或在 8888 预览时保持 3000 代理开启。', 'bot');
+        showMessage('本地代理不可达：请运行 `npm run start`（3000端口），并在浏览器用 http://localhost:3000 访问；若已在 8888 预览，请同时保持 3000 代理在线。', 'bot');
     }
 }
 
@@ -691,6 +642,18 @@ function arrayBufferToBase64(buffer) {
     }
 
     return btoa(binary);
+}
+
+// Markdown 渲染并过滤，防止 XSS
+function renderMarkdown(text) {
+    if (window.marked && window.DOMPurify) {
+        const rawHtml = marked.parse(text || '');
+        return DOMPurify.sanitize(rawHtml);
+    }
+    // 兜底：无库时退回纯文本
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
 }
 
 // 错误处理
