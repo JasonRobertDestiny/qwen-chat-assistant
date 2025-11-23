@@ -8,9 +8,10 @@ let recordingTimer = null;
 
 // API 配置
 const API_CONFIG = {
-    baseURL: '/api/chat', // 使用本地代理
+    // 动态计算后端地址，避免用 8888 静态服时请求落空
+    baseURL: getApiBaseUrl(),
     apiKey: 'sk-5eca33a68f2d499fa09953b9b308ed0f',
-    model: 'qwen-vl-plus' // 视觉模型，支持图片分析
+    model: 'qwen3-omni-flash'
 };
 
 // DOM 元素
@@ -233,7 +234,7 @@ async function sendToAPI(message, imageData = null, audioData = null) {
         } else if (error.message.includes('500')) {
             errorMessage = 'API服务器内部错误，请稍后再试。';
         } else if (error.message.includes('Failed to fetch')) {
-            errorMessage = '网络连接失败，请检查网络或服务器状态。';
+            errorMessage = '网络/代理不可达，请确认已运行 `npm run start` 并使用 http://localhost:3000 访问，或在静态 8888 端口时确保 3000 端口已开启。';
         }
 
         showMessage(errorMessage, 'bot');
@@ -275,6 +276,19 @@ function updateLoadingMessage() {
         loadingText.textContent = loadingMessages[loadingMessageIndex];
         loadingMessageIndex = (loadingMessageIndex + 1) % loadingMessages.length;
     }
+}
+
+// 计算后端地址，兼容 3000 代理与 8888 静态预览
+function getApiBaseUrl() {
+    const { protocol, hostname, port, origin } = window.location;
+
+    // 若使用 python -m http.server 8888 提供静态资源，则回落到 3000 端口的 Node 代理
+    if (hostname === 'localhost' && port === '8888') {
+        return `${protocol}//${hostname}:3000/api/chat`;
+    }
+
+    // 默认同源
+    return `${origin}/api/chat`;
 }
 
 // 语音功能
@@ -337,6 +351,7 @@ async function handleRecordedAudio() {
     }
 
     try {
+        // 将录音 Blob 转成 Base64 WAV，便于后端直传模型
         const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
         const audioPayload = await blobToWavBase64(audioBlob);
 
@@ -352,6 +367,7 @@ async function handleRecordedAudio() {
 }
 
 function getSupportedMimeType() {
+    // 按优先级选择浏览器支持的录音编码
     const candidates = [
         'audio/webm;codecs=opus',
         'audio/ogg;codecs=opus',
@@ -528,6 +544,7 @@ function formatTime(date) {
 
 // 将录音转换为 Base64 WAV
 async function blobToWavBase64(blob) {
+    // 将浏览器录音解码后重新封装为 PCM WAV，并转成 Base64
     const arrayBuffer = await blob.arrayBuffer();
     const audioContext = new AudioContext();
     const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
@@ -545,6 +562,7 @@ async function blobToWavBase64(blob) {
 
 // 生成 WAV 二进制数据
 function encodeWav(audioBuffer) {
+    // 按 WAV 头规范写入 PCM 数据
     const channelData = audioBuffer.getChannelData(0);
     const sampleRate = audioBuffer.sampleRate;
     const samples = floatTo16BitPCM(channelData);
@@ -577,6 +595,7 @@ function encodeWav(audioBuffer) {
 
 // 浮点转16位PCM
 function floatTo16BitPCM(floatData) {
+    // 浮点采样转 16 位有符号整型
     const pcmData = new Int16Array(floatData.length);
     for (let i = 0; i < floatData.length; i++) {
         const sample = Math.max(-1, Math.min(1, floatData[i]));
@@ -587,6 +606,7 @@ function floatTo16BitPCM(floatData) {
 
 // 写入字符串到 DataView
 function writeString(view, offset, string) {
+    // 写入 ASCII 字符到 DataView
     for (let i = 0; i < string.length; i++) {
         view.setUint8(offset + i, string.charCodeAt(i));
     }

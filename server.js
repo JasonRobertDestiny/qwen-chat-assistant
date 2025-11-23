@@ -7,7 +7,8 @@ const PORT = 3000;
 
 // API配置
 const API_CONFIG = {
-    baseURL: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
+    // 兼容 OpenAI 风格的聊天接口，便于多模态输入
+    baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
     apiKey: 'sk-5eca33a68f2d499fa09953b9b308ed0f',
     // 升级为全模态极速版，支持文本/图片/音频输入
     model: 'qwen3-omni-flash'
@@ -15,7 +16,9 @@ const API_CONFIG = {
 
 // 中间件
 app.use(cors());
-app.use(express.json());
+// 放宽请求体大小以承载音频 Base64
+app.use(express.json({ limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 app.use(express.static('.'));
 
 // API代理路由
@@ -53,19 +56,17 @@ app.post('/api/chat', async (req, res) => {
             return res.status(400).json({ error: '缺少可用的输入内容' });
         }
 
+        // 兼容模式请求体（与 OpenAI chat/completions 相同）
         const requestBody = {
             model: API_CONFIG.model,
-            input: {
-                messages: [
-                    {
-                        role: 'user',
-                        content: contentBlocks
-                    }
-                ]
-            },
-            parameters: {
-                result_format: 'message'
-            }
+            messages: [
+                {
+                    role: 'user',
+                    content: contentBlocks
+                }
+            ],
+            // 不拉取音频输出，如需音频可补充 modalities: ['text','audio']
+            stream: false
         };
 
         console.log('发送到通义千问:', JSON.stringify(requestBody).slice(0, 4000));
@@ -74,8 +75,7 @@ app.post('/api/chat', async (req, res) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${API_CONFIG.apiKey}`,
-                'X-DashScope-SSE': 'disable'
+                'Authorization': `Bearer ${API_CONFIG.apiKey}`
             },
             body: JSON.stringify(requestBody)
         });
@@ -94,17 +94,19 @@ app.post('/api/chat', async (req, res) => {
         const data = await response.json();
         console.log('API响应:', data);
 
-        if (data.output && data.output.choices && data.output.choices[0]) {
-            return res.json({
-                success: true,
-                message: data.output.choices[0].message.content
-            });
-        }
+        // 兼容模式返回 {choices:[{message:{content:[...]}}]}
+        if (data.choices && data.choices[0]) {
+            const replyContent = data.choices[0].message.content;
+            const normalizedReply = Array.isArray(replyContent)
+                ? replyContent
+                    .filter(item => item && (item.text || item.content))
+                    .map(item => item.text || item.content)
+                    .join('')
+                : replyContent;
 
-        if (data.output && data.output.text) {
             return res.json({
                 success: true,
-                message: data.output.text
+                message: normalizedReply
             });
         }
 
