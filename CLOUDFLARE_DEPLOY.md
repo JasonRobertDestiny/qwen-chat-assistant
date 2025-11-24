@@ -24,14 +24,29 @@
    - 选择仓库: `JasonRobertDestiny/qwen-chat`
    - 点击 "Begin setup"
 
-4. **配置构建设置**
+4. **配置构建设置**（⚠️ 重要）
    ```
    Project name: qwen-chat（或自定义）
    Production branch: main
-   Build command: 留空（或填 echo "No build needed"）
+
+   Framework preset: None（不选择任何框架）
+
+   Build command: 留空（或删除默认值）
    Build output directory: /（填一个斜杠）
-   Root directory: /（留空或填一个斜杠）
+   Root directory: /（留空）
    ```
+
+   **关键配置说明**：
+   - ✅ Framework preset 选择 **None** 或不选择
+   - ✅ Build command **必须留空**，不要填任何命令
+   - ✅ Build output directory 填 **/**（一个斜杠）
+   - ❌ 不要填 `npm run build` 或其他构建命令
+   - ❌ 不要填 `npx wrangler deploy`（这是Workers命令，不是Pages）
+
+   **为什么**：
+   - 这是纯静态项目，没有构建步骤
+   - Cloudflare Pages会自动识别 `functions/` 目录
+   - 不需要wrangler.toml配置文件
 
 5. **设置环境变量**
    - 点击 "Environment variables (advanced)"
@@ -102,9 +117,30 @@ wrangler pages secret put QWEN_API_KEY
 
 ## 七、故障排查
 
-### 1. 部署失败
-- 检查环境变量是否设置正确
-- 查看Build日志中的错误信息
+### 1. 部署失败：`Missing entry-point to Worker script`
+
+**错误信息**：
+```
+✘ [ERROR] Missing entry-point to Worker script or to assets directory
+Executing user deploy command: npx wrangler deploy
+```
+
+**原因**：配置了错误的部署命令或框架preset
+
+**解决方法**：
+1. 进入Cloudflare Dashboard → 你的项目 → Settings → Builds & deployments
+2. 检查配置：
+   ```
+   Framework preset: None
+   Build command: （留空）
+   Build output directory: /
+   ```
+3. **删除任何deploy command配置**
+4. 点击 "Retry deployment"
+
+**或者重新创建项目**：
+1. 删除现有项目
+2. 按照正确配置重新创建（见上面步骤4）
 
 ### 2. API调用失败
 - 确认环境变量 `QWEN_API_KEY` 已设置
