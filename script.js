@@ -6,6 +6,9 @@ let currentStream;
 let recordingStartTime = null;
 let recordingTimer = null;
 
+// 请求与超时常量
+const REQUEST_TIMEOUT_MS = 45000; // 45秒请求超时
+
 // API 配置
 const API_CONFIG = {
     // 动态计算后端地址，避免用 8888 静态服时请求落空
@@ -183,7 +186,7 @@ async function sendToAPI(message, imageData = null, audioData = null) {
 
         // 添加超时控制
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
+        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS); // 45秒超时
 
         const response = await fetch(API_CONFIG.baseURL, {
             method: 'POST',
@@ -221,7 +224,7 @@ async function sendToAPI(message, imageData = null, audioData = null) {
         let errorMessage = '抱歉，我现在无法回应。请稍后再试。';
 
         if (error.name === 'AbortError') {
-            errorMessage = '请求超时（30秒），请检查网络或稍后再试。';
+            errorMessage = `请求超时（${Math.floor(REQUEST_TIMEOUT_MS / 1000)}秒），请检查网络或稍后再试。`;
         } else if (error.message.includes('401')) {
             errorMessage = 'API密钥无效，请检查配置。';
         } else if (error.message.includes('403')) {
@@ -466,22 +469,50 @@ function capturePhoto() {
     const canvas = elements.cameraCanvas;
     const video = elements.cameraVideo;
     const context = canvas.getContext('2d');
-    
+
+    // 限制最大宽度为1920px
+    let width = video.videoWidth;
+    let height = video.videoHeight;
+    const maxWidth = 1920;
+
+    if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+    }
+
     // 设置画布尺寸
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    
+    canvas.width = width;
+    canvas.height = height;
+
     // 绘制视频帧到画布
-    context.drawImage(video, 0, 0);
-    
-    // 获取图片数据
-    const imageData = canvas.toDataURL('image/jpeg', 0.8);
-    
+    context.drawImage(video, 0, 0, width, height);
+
+    // 压缩图片（质量0.8，适配Vercel限制）
+    let imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+    // 检查大小，如果过大则降低质量
+    let sizeInMB = (imageData.length * 0.75) / (1024 * 1024);
+    let quality = 0.8;
+
+    while (sizeInMB > 3 && quality > 0.5) {
+        quality -= 0.1;
+        imageData = canvas.toDataURL('image/jpeg', quality);
+        sizeInMB = (imageData.length * 0.75) / (1024 * 1024);
+        console.log(`降低质量至${quality.toFixed(1)}，图片大小: ${sizeInMB.toFixed(2)}MB`);
+    }
+
+    if (sizeInMB > 3) {
+        showMessage('拍摄的图片过大，请重新拍摄或选择上传更小的图片', 'bot');
+        return;
+    }
+
+    console.log(`拍摄图片压缩后大小: ${sizeInMB.toFixed(2)}MB (质量: ${quality.toFixed(1)})`);
+
     // 显示预览
     elements.previewImage.src = imageData;
     elements.cameraModal.classList.add('hidden');
     elements.imagePreview.classList.remove('hidden');
-    
+
     // 关闭摄像头
     if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
@@ -517,7 +548,7 @@ function cancelImage() {
 }
 
 // 图片文件上传处理
-function handleImageUpload(event) {
+async function handleImageUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
@@ -527,28 +558,80 @@ function handleImageUpload(event) {
         return;
     }
 
-    // 检查文件大小（限制10MB）
-    if (file.size > 10 * 1024 * 1024) {
-        showMessage('图片文件过大，请选择小于10MB的图片', 'bot');
+    // 检查文件大小（限制5MB原始文件）
+    if (file.size > 5 * 1024 * 1024) {
+        showMessage('图片文件过大，请选择小于5MB的图片', 'bot');
         return;
     }
 
-    // 读取文件并转换为base64
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const imageData = e.target.result;
+    try {
+        // 压缩图片（目标：Base64后<3MB以适配Vercel 4.5MB限制）
+        const compressedImage = await compressImage(file, 0.8, 1920);
 
         // 显示预览
-        elements.previewImage.src = imageData;
+        elements.previewImage.src = compressedImage;
         elements.imagePreview.classList.remove('hidden');
-    };
-    reader.onerror = function() {
-        showMessage('图片读取失败，请重试', 'bot');
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+        console.error('图片处理失败:', error);
+        showMessage('图片处理失败，请重试', 'bot');
+    }
 
     // 清空input以便再次选择同一文件
     event.target.value = '';
+}
+
+// 图片压缩函数
+async function compressImage(file, quality = 0.8, maxWidth = 1920) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            const img = new Image();
+
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                // 等比例缩放
+                if (width > maxWidth) {
+                    height = (height * maxWidth) / width;
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // 转换为JPEG格式并压缩
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+
+                // 检查压缩后大小（Base64约为原始的1.33倍）
+                const sizeInMB = (compressedDataUrl.length * 0.75) / (1024 * 1024);
+                console.log(`图片压缩后大小: ${sizeInMB.toFixed(2)}MB`);
+
+                // 如果仍然过大，进一步降低质量
+                if (sizeInMB > 3 && quality > 0.5) {
+                    console.log('图片仍然过大，降低质量重新压缩...');
+                    compressImage(file, quality - 0.2, maxWidth)
+                        .then(resolve)
+                        .catch(reject);
+                } else if (sizeInMB > 3) {
+                    reject(new Error('图片过大无法压缩到合适大小，请选择更小的图片'));
+                } else {
+                    resolve(compressedDataUrl);
+                }
+            };
+
+            img.onerror = () => reject(new Error('图片加载失败'));
+            img.src = e.target.result;
+        };
+
+        reader.onerror = () => reject(new Error('文件读取失败'));
+        reader.readAsDataURL(file);
+    });
 }
 
 // 工具函数
